@@ -1,0 +1,38 @@
+{
+  "name": "sad_spirit/el2sql",
+  "type": "library",
+  "description": "Translator from Symfony's ExpressionLanguage to Postgres SQL dialect",
+  "keywords": ["PostgreSQL", "Postgres", "translator", "Symfony", "ExpressionLanguage", "SQL"],
+  "homepage": "https://github.com/sad-spirit/el2sql/",
+  "license": "BSD-2-Clause",
+  "authors": [
+    {
+      "name":     "Alexey Borzov",
+      "email":    "avb@php.net"
+    }
+  ],
+  "support": {
+    "issues":   "https://github.com/sad-spirit/el2sql/issues"
+  },
+  "require": {
+    "php":                         "^8.2",
+    "sad_spirit/pg_gateway":       "^1.0.0@beta",
+    "symfony/expression-language": "^7.4"
+  },
+  "require-dev":  {
+    "psr/cache":              "^3.0",
+    "phpunit/phpunit":        "^11",
+    "squizlabs/php_codesniffer": "^3.6",
+    "vimeo/psalm":            "^6.8"
+  },
+  "autoload": {
+    "psr-4": {
+      "sad_spirit\\el2sql\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "sad_spirit\\el2sql\\tests\\": "tests/"
+    }
+  }
+}

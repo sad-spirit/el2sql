@@ -16,15 +16,22 @@ namespace sad_spirit\el2sql\tests;
 
 use PHPUnit\Framework\TestCase;
 use sad_spirit\el2sql\{
+    ClassMetadata,
     TranslatableExpressionFunction,
     TranslatableExpressionLanguage,
     exceptions\InvalidArgumentException
 };
-use sad_spirit\el2sql\tests\assets\PassthroughFunctionTranslator;
+use sad_spirit\el2sql\tests\assets\{
+    MagicEntity,
+    SimpleEntity,
+    PassthroughFunctionTranslator
+};
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 
 class TranslatableExpressionLanguageTest extends TestCase
 {
+    use Psr6Mocks;
+
     public function testMissingFunctionTranslator(): void
     {
         $language = new TranslatableExpressionLanguage();
@@ -46,5 +53,16 @@ class TranslatableExpressionLanguageTest extends TestCase
         ));
 
         $this::assertSame($translator, $language->getFunctionTranslator('date'));
+    }
+
+    public function testPropagatesCacheToVariableMapper(): void
+    {
+        // Putting the wrong metadata into cache
+        $simple   = new ClassMetadata(new \ReflectionClass(SimpleEntity::class));
+        $language = new TranslatableExpressionLanguage($this->getMockForCacheHit($simple));
+        $mapper   = $language->getVariableMapper();
+
+        $mapper->map('magic', MagicEntity::class);
+        $this::assertSame($simple, $mapper->getClassMetadata('magic'));
     }
 }

@@ -25,6 +25,7 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
 {
     /** @var array<string, FunctionTranslator> */
     private array $functionTranslators = [];
+    private ?VariableMapper $mapper = null;
 
     public function addFunction(ExpressionFunction $function): void
     {
@@ -43,5 +44,29 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
             throw new InvalidArgumentException("SQL translator for function '$name' is missing");
         }
         return $this->functionTranslators[$name];
+    }
+
+    /**
+     * Sets the mapper from expression variables to class metadata
+     */
+    public function setVariableMapper(VariableMapper $mapper): void
+    {
+        $this->mapper = $mapper;
+    }
+
+    /**
+     * Gets the mapper from expression variables to class metadata
+     */
+    public function getVariableMapper(): VariableMapper
+    {
+        if (null === $this->mapper) {
+            $property = (new \ReflectionClass(parent::class))
+                ->getProperty('cache');
+
+            /** @psalm-suppress MixedArgument */
+            $this->mapper = new VariableMapper($property->getValue($this));
+        }
+
+        return $this->mapper;
     }
 }

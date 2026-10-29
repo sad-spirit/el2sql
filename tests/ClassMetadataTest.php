@@ -28,6 +28,7 @@ use sad_spirit\el2sql\tests\assets\{
     SimpleEntity,
     invalid\InvalidRepeat,
     invalid\MagicPropertyConflictingWithReal,
+    invalid\MagicPropertyWithClassAttribute,
     invalid\MagicPropertyWithoutGet
 };
 
@@ -128,5 +129,13 @@ class ClassMetadataTest extends TestCase
         $this::expectExceptionMessage('MagicProperty attribute cannot reference existing property $foo');
 
         new ClassMetadata(new \ReflectionClass(MagicPropertyConflictingWithReal::class));
+    }
+
+    public function testDisallowMagicPropertyWithoutTargetProperty(): void
+    {
+        $this::expectException(MappingException::class);
+        $this::expectExceptionMessage('MagicProperty attribute accepts only attributes applicable to properties');
+
+        new ClassMetadata(new \ReflectionClass(MagicPropertyWithClassAttribute::class));
     }
 }

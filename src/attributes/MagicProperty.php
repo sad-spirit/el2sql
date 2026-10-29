@@ -14,11 +14,22 @@ declare(strict_types=1);
 
 namespace sad_spirit\el2sql\attributes;
 
+use sad_spirit\el2sql\exceptions\MappingException;
+
 /** Allows to describe __get()-backed magic properties of class */
 #[\Attribute(\Attribute::TARGET_CLASS | \Attribute::IS_REPEATABLE)]
 final readonly class MagicProperty implements TranslatorAttribute
 {
     public function __construct(public string $name, public TranslatorAttribute $attribute)
     {
+        foreach ((new \ReflectionClass($this->attribute))->getAttributes(\Attribute::class) as $reflectionAttribute) {
+            /** @var \Attribute $instance */
+            $instance = $reflectionAttribute->newInstance();
+            if (0 === ($instance->flags & \Attribute::TARGET_PROPERTY)) {
+                throw new MappingException(
+                    'MagicProperty attribute accepts only attributes applicable to properties'
+                );
+            }
+        }
     }
 }

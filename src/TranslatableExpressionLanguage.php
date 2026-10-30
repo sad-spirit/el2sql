@@ -16,6 +16,7 @@ namespace sad_spirit\el2sql;
 
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\ExpressionLanguage\{
+    Expression,
     ExpressionFunction,
     ExpressionFunctionProviderInterface,
     ExpressionLanguage
@@ -128,5 +129,41 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
             $variableName,
             $propertyName
         ));
+    }
+
+    /**
+     * Returns an object that performs a translation of a given $expression to SQL
+     *
+     * The expression is *not* translated immediately as the query containing the translated SQL can be cached
+     *
+     * @param string[] $knownValues
+     */
+    public function translate(
+        Expression|string $expression,
+        array $names = [],
+        array $knownValues = []
+    ): TranslatedExpression {
+        $parsedExpression    = $this->parse($expression, $names);
+        $namesFinder         = new ExpressionNamesFinder($parsedExpression);
+        $propertyTranslators = [];
+        $functionTranslators = [];
+
+        foreach ($namesFinder->getAttributeNames() as [$variableName, $propertyName]) {
+            $propertyTranslators[$variableName . '.' . $propertyName] = $this->createPropertyTranslator(
+                $variableName,
+                $propertyName,
+                \in_array($variableName, $knownValues, true)
+            );
+        }
+        foreach ($namesFinder->getFunctionNames() as $functionName) {
+            $functionTranslators[$functionName] = $this->getFunctionTranslator($functionName);
+        }
+
+        return new TranslatedExpression(
+            $parsedExpression,
+            $knownValues,
+            $propertyTranslators,
+            $functionTranslators,
+        );
     }
 }

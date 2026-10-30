@@ -57,7 +57,7 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
     public function __construct(
         private ParsedExpression $original,
         /** @var string[] */
-        private array $variableNames,
+        private array $knownValues,
         /** @var array<string, PropertyTranslator> */
         private array $propertyTranslators,
         /** @var array<string, FunctionTranslator> */
@@ -89,7 +89,7 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
      */
     public function getCondition(): Condition
     {
-        return new class ($this->translate(...), $this->generateKey($this->variableNames)) extends Condition {
+        return new class ($this->translate(...), $this->generateKey($this->knownValues)) extends Condition {
             public function __construct(
                 /** @var Closure(): ScalarExpression */
                 private readonly \Closure $expressionFactory,
@@ -116,14 +116,9 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
      */
     private function generateKey(array $names): string
     {
-        \asort($names);
-        $cacheNameItems = [];
+        \sort($names, \SORT_STRING);
 
-        foreach ($names as $nameKey => $name) {
-            $cacheNameItems[] = \is_int($nameKey) ? $name : $nameKey . ':' . $name;
-        }
-
-        return TableLocator::hash([self::class, (string)$this->original, $cacheNameItems]);
+        return TableLocator::hash([self::class, (string)$this->original, $names]);
     }
 
     /**

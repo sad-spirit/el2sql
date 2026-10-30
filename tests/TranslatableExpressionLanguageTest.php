@@ -21,15 +21,18 @@ use sad_spirit\el2sql\{
     PropertyTranslatorFactory,
     TranslatableExpressionFunction,
     TranslatableExpressionLanguage,
+    TranslatedExpression,
     VariableMapper,
     exceptions\OutOfBoundsException
 };
 use sad_spirit\el2sql\tests\assets\{
+    ClassAttribute,
     ColumnReferenceTranslator,
     MagicEntity,
     ParameterTranslator,
     SimpleEntity,
-    PassthroughFunctionTranslator};
+    PassthroughFunctionTranslator
+};
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 
 class TranslatableExpressionLanguageTest extends TestCase
@@ -144,5 +147,45 @@ class TranslatableExpressionLanguageTest extends TestCase
         $language->setVariableMapper($mapper);
         $this::assertSame($lookup, $language->createPropertyTranslator('foo', 'bar'));
         $this::assertSame($reference, $language->createPropertyTranslator('foo', 'bar', true));
+    }
+
+    public function testTranslate(): void
+    {
+        $language = new TranslatableExpressionLanguage();
+        $language->getVariableMapper()
+            ->map('simple', SimpleEntity::class)
+            ->map('magic', MagicEntity::class);
+
+        $factory = $this->createMock(PropertyTranslatorFactory::class);
+        $factory->expects($this::once())
+            ->method('createLookupTranslator')
+            ->with('simple', new PropertyMetadata(
+                SimpleEntity::class,
+                'd',
+                [new ClassAttribute('simple')]
+            ))
+            ->willReturn($propTranslator = new ColumnReferenceTranslator('foo', 'bar'));
+        $factory->expects($this::never())
+            ->method('createReferenceTranslator');
+        $language->addPropertyTranslatorFactory($factory);
+
+        foreach (['foo', 'bar'] as $functionName) {
+            $language->addFunction(new TranslatableExpressionFunction(
+                $functionName,
+                fn (...$args) => "\date('Y-m-d H:i:s')",
+                fn ($p, ...$args) => \date('Y-m-d H:i:s'),
+                new PassthroughFunctionTranslator($functionName)
+            ));
+        }
+
+        $this::assertEquals(
+            new TranslatedExpression(
+                $language->parse('foo(simple.d)', ['simple', 'magic']),
+                ['magic'],
+                ['simple.d' => $propTranslator],
+                ['foo'      => new PassthroughFunctionTranslator('foo')]
+            ),
+            $language->translate('foo(simple.d)', ['simple', 'magic'], ['magic'])
+        );
     }
 }

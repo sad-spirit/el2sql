@@ -14,6 +14,7 @@
   "support": {
     "issues":   "https://github.com/sad-spirit/el2sql/issues"
   },
+  "minimum-stability": "beta",
   "require": {
     "php":                         "^8.2",
     "sad_spirit/pg_gateway":       "^1.0.0@beta",

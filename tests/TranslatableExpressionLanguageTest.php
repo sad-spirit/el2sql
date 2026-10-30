@@ -17,15 +17,19 @@ namespace sad_spirit\el2sql\tests;
 use PHPUnit\Framework\TestCase;
 use sad_spirit\el2sql\{
     ClassMetadata,
+    PropertyMetadata,
+    PropertyTranslatorFactory,
     TranslatableExpressionFunction,
     TranslatableExpressionLanguage,
-    exceptions\InvalidArgumentException
+    VariableMapper,
+    exceptions\OutOfBoundsException
 };
 use sad_spirit\el2sql\tests\assets\{
+    ColumnReferenceTranslator,
     MagicEntity,
+    ParameterTranslator,
     SimpleEntity,
-    PassthroughFunctionTranslator
-};
+    PassthroughFunctionTranslator};
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 
 class TranslatableExpressionLanguageTest extends TestCase
@@ -37,7 +41,7 @@ class TranslatableExpressionLanguageTest extends TestCase
         $language = new TranslatableExpressionLanguage();
         $language->addFunction(ExpressionFunction::fromPhp('time'));
 
-        $this::expectException(InvalidArgumentException::class);
+        $this::expectException(OutOfBoundsException::class);
         $this::expectExceptionMessage("SQL translator for function 'time' is missing");
         $language->getFunctionTranslator('time');
     }
@@ -64,5 +68,81 @@ class TranslatableExpressionLanguageTest extends TestCase
 
         $mapper->map('magic', MagicEntity::class);
         $this::assertSame($simple, $mapper->getClassMetadata('magic'));
+    }
+
+    public function testNoPropertyTranslatorWithoutFactory(): void
+    {
+        $mapper = $this->createMock(VariableMapper::class);
+        $mapper->expects($this::once())
+            ->method('getPropertyMetadata')
+            ->willReturn(new PropertyMetadata(
+                SimpleEntity::class,
+                'bar'
+            ));
+
+        $this::expectException(OutOfBoundsException::class);
+        $this::expectExceptionMessage("SQL translator for lookup of 'foo.bar' is missing");
+
+        $language = new TranslatableExpressionLanguage();
+        $language->setVariableMapper($mapper);
+        $language->createPropertyTranslator('foo', 'bar');
+    }
+
+    public function testNoPropertyTranslatorWithUnapplicableFactory(): void
+    {
+        $mapper = $this->createMock(VariableMapper::class);
+        $mapper->expects($this::once())
+            ->method('getPropertyMetadata')
+            ->willReturn($metadata = new PropertyMetadata(
+                SimpleEntity::class,
+                'bar'
+            ));
+
+        $factory = $this->createMock(PropertyTranslatorFactory::class);
+        $factory->expects($this::once())
+            ->method('createReferenceTranslator')
+            ->with('foo', $metadata)
+            ->willReturn(null);
+
+        $this::expectException(OutOfBoundsException::class);
+        $this::expectExceptionMessage("SQL translator for referencing of 'foo.bar' is missing");
+
+        $language = new TranslatableExpressionLanguage(null, [], [$factory]);
+        $language->setVariableMapper($mapper);
+        $language->createPropertyTranslator('foo', 'bar', true);
+    }
+
+    public function testUsesFirstApplicablePropertyTranslatorFactory(): void
+    {
+        $mapper = $this->createMock(VariableMapper::class);
+        $mapper->expects($this::exactly(2))
+            ->method('getPropertyMetadata')
+            ->willReturn($metadata = new PropertyMetadata(
+                SimpleEntity::class,
+                'bar'
+            ));
+
+        $factoryOne = $this->createMock(PropertyTranslatorFactory::class);
+        $factoryOne->expects($this::once())
+            ->method('createLookupTranslator')
+            ->with('foo', $metadata)
+            ->willReturn(null);
+        $factoryOne->expects($this::once())
+            ->method('createReferenceTranslator')
+            ->with('foo', $metadata)
+            ->willReturn($reference = new ParameterTranslator('foo', 'bar'));
+
+        $factoryTwo = $this->createMock(PropertyTranslatorFactory::class);
+        $factoryTwo->expects($this::once())
+            ->method('createLookupTranslator')
+            ->with('foo', $metadata)
+            ->willReturn($lookup = new ColumnReferenceTranslator('foo', 'bar'));
+        $factoryTwo->expects($this::never())
+            ->method('createReferenceTranslator');
+
+        $language = new TranslatableExpressionLanguage(null, [], [$factoryOne, $factoryTwo]);
+        $language->setVariableMapper($mapper);
+        $this::assertSame($lookup, $language->createPropertyTranslator('foo', 'bar'));
+        $this::assertSame($reference, $language->createPropertyTranslator('foo', 'bar', true));
     }
 }

@@ -14,9 +14,12 @@ declare(strict_types=1);
 
 namespace sad_spirit\el2sql;
 
-use sad_spirit\el2sql\exceptions\InvalidArgumentException;
-use Symfony\Component\ExpressionLanguage\ExpressionFunction;
-use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
+use Psr\Cache\CacheItemPoolInterface;
+use Symfony\Component\ExpressionLanguage\{
+    ExpressionFunction,
+    ExpressionFunctionProviderInterface,
+    ExpressionLanguage
+};
 
 /**
  * ExpressionLanguage subclass that knows about translating properties and functions to SQL
@@ -25,7 +28,24 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
 {
     /** @var array<string, FunctionTranslator> */
     private array $functionTranslators = [];
+    /** @var PropertyTranslatorFactory[] */
+    private array $propertyTranslatorFactories = [];
     private ?VariableMapper $mapper = null;
+
+    /**
+     * @param iterable<ExpressionFunctionProviderInterface> $providers
+     * @param iterable<PropertyTranslatorFactory> $propertyTranslatorFactories
+     */
+    public function __construct(
+        ?CacheItemPoolInterface $cache = null,
+        iterable $providers = [],
+        iterable $propertyTranslatorFactories = []
+    ) {
+        parent::__construct($cache, $providers);
+        foreach ($propertyTranslatorFactories as $factory) {
+            $this->addPropertyTranslatorFactory($factory);
+        }
+    }
 
     public function addFunction(ExpressionFunction $function): void
     {
@@ -41,7 +61,7 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
     public function getFunctionTranslator(string $name): FunctionTranslator
     {
         if (!isset($this->functionTranslators[$name])) {
-            throw new InvalidArgumentException("SQL translator for function '$name' is missing");
+            throw new exceptions\OutOfBoundsException("SQL translator for function '$name' is missing");
         }
         return $this->functionTranslators[$name];
     }
@@ -68,5 +88,45 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
         }
 
         return $this->mapper;
+    }
+
+    /**
+     * Adds a factory creating translators for properties referenced in the expression
+     */
+    public function addPropertyTranslatorFactory(PropertyTranslatorFactory $factory): void
+    {
+        $this->propertyTranslatorFactories[] = $factory;
+    }
+
+    /**
+     * Creates a translator for a property access in the expression
+     *
+     * @param bool $knownValue If `true`, a translator for referencing a known value is created, if `false` —
+     *                         for looking up a value from the DB
+     */
+    public function createPropertyTranslator(
+        string $variableName,
+        string $propertyName,
+        bool $knownValue = false
+    ): PropertyTranslator {
+        $metadata = $this->getVariableMapper()
+            ->getPropertyMetadata($variableName, $propertyName);
+
+        foreach ($this->propertyTranslatorFactories as $factory) {
+            if (
+                null !== $translator = ($knownValue
+                    ? $factory->createReferenceTranslator($variableName, $metadata)
+                    : $factory->createLookupTranslator($variableName, $metadata))
+            ) {
+                return $translator;
+            }
+        }
+
+        throw new exceptions\OutOfBoundsException(\sprintf(
+            "SQL translator for %s of '%s.%s' is missing",
+            $knownValue ? 'referencing' : 'lookup',
+            $variableName,
+            $propertyName
+        ));
     }
 }

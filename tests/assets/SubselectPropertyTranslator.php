@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace sad_spirit\el2sql\tests\assets;
 
-use sad_spirit\el2sql\PropertyTranslator;
+use sad_spirit\el2sql\PropertyLookupTranslator;
 use sad_spirit\pg_builder\Select;
 use sad_spirit\pg_builder\SelectCommon;
 use sad_spirit\pg_builder\nodes\{
@@ -28,7 +28,7 @@ use sad_spirit\pg_builder\nodes\{
 /**
  * Translates "a.b" to "select b from a"
  */
-readonly class SubselectPropertyTranslator implements PropertyTranslator
+readonly class SubselectPropertyTranslator implements PropertyLookupTranslator
 {
     public function __construct(private string $variableName, private string $propertyName)
     {
@@ -39,10 +39,5 @@ readonly class SubselectPropertyTranslator implements PropertyTranslator
         $select = new Select(new TargetList([new TargetElement(new ColumnReference($this->propertyName))]));
         $select->from[] = new RelationReference(new QualifiedName($this->variableName));
         return $select;
-    }
-
-    public function getQueryParameters(object $value): array
-    {
-        return [];
     }
 }

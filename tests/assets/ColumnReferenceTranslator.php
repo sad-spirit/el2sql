@@ -16,7 +16,7 @@ namespace sad_spirit\el2sql\tests\assets;
 
 use sad_spirit\el2sql\{
     ExtraFragmentsProvider,
-    PropertyTranslator
+    PropertyLookupTranslator
 };
 use sad_spirit\pg_builder\nodes\{
     ColumnReference,
@@ -26,7 +26,7 @@ use sad_spirit\pg_builder\nodes\{
 /**
  * Translates "a.b" to "a.b"
  */
-readonly class ColumnReferenceTranslator implements PropertyTranslator, ExtraFragmentsProvider
+readonly class ColumnReferenceTranslator implements PropertyLookupTranslator, ExtraFragmentsProvider
 {
     public function __construct(
         private string $variableName,
@@ -43,10 +43,5 @@ readonly class ColumnReferenceTranslator implements PropertyTranslator, ExtraFra
     public function translate(): ScalarExpression
     {
         return new ColumnReference($this->variableName, $this->propertyName);
-    }
-
-    public function getQueryParameters(object $value): array
-    {
-        return [];
     }
 }

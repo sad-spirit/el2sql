@@ -35,11 +35,4 @@ interface PropertyTranslator
      * Returns an SQL construct used to represent the property access
      */
     public function translate(): ScalarExpression|SelectCommon;
-
-    /**
-     * Returns values for query parameters based on the object containing this property
-     *
-     * @return array<string, mixed>
-     */
-    public function getQueryParameters(object $value): array;
 }

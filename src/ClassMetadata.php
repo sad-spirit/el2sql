@@ -23,7 +23,7 @@ readonly class ClassMetadata
     public bool $magic;
     /** @var attributes\TranslatorAttribute[] */
     public array $classAttributes;
-    /** @var array<string, attributes\TranslatorAttribute[]> */
+    /** @var array<string, array{magic: bool, attributes: attributes\TranslatorAttribute[]}> */
     public array $properties;
 
     public function __construct(\ReflectionClass $reflection)
@@ -40,7 +40,7 @@ readonly class ClassMetadata
             if ($property->isStatic()) {
                 continue;
             }
-            $properties[$property->getName()] = [];
+            $properties[$property->getName()] = ['magic' => false, 'attributes' => []];
             foreach (
                 $property->getAttributes(
                     attributes\TranslatorAttribute::class,
@@ -54,7 +54,7 @@ readonly class ClassMetadata
                     $property->getDeclaringClass()->getStartLine()
                 );
 
-                $properties[$property->getName()][] = $attribute;
+                $properties[$property->getName()]['attributes'][] = $attribute;
             }
         }
 
@@ -89,9 +89,9 @@ readonly class ClassMetadata
                     $reflection->getStartLine()
                 ));
             } elseif (\array_key_exists($attribute->name, $magicProperties)) {
-                $magicProperties[$attribute->name][] = $attribute->attribute;
+                $magicProperties[$attribute->name]['attributes'][] = $attribute->attribute;
             } else {
-                $magicProperties[$attribute->name] = [$attribute->attribute];
+                $magicProperties[$attribute->name] = ['magic' => true, 'attributes' => [$attribute->attribute]];
             }
         }
         $this->classAttributes = $classAttributes;
@@ -110,7 +110,15 @@ readonly class ClassMetadata
                 $this->className
             ));
         }
-        return new PropertyMetadata($this->className, $name, $this->classAttributes, $this->properties[$name] ?? []);
+
+        $property = $this->properties[$name] ?? ['magic' => true, 'attributes' => []];
+        return new PropertyMetadata(
+            $this->className,
+            $name,
+            $property['magic'],
+            $this->classAttributes,
+            $property['attributes']
+        );
     }
 
     /**

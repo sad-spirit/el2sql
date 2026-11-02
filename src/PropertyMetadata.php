@@ -22,6 +22,7 @@ final readonly class PropertyMetadata
     public function __construct(
         public string $className,
         public string $propertyName,
+        public bool $isMagic = false,
         /** @var attributes\TranslatorAttribute[] */
         public array $classAttributes = [],
         /** @var attributes\TranslatorAttribute[] */

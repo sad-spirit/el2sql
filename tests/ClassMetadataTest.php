@@ -44,6 +44,7 @@ class ClassMetadataTest extends TestCase
             new PropertyMetadata(
                 SimpleEntity::class,
                 'b',
+                false,
                 [new ClassAttribute('simple')],
                 [new PropertyAttribute('field_b')]
             ),
@@ -53,6 +54,7 @@ class ClassMetadataTest extends TestCase
             new PropertyMetadata(
                 SimpleEntity::class,
                 'd',
+                false,
                 [new ClassAttribute('simple')],
                 []
             ),
@@ -74,6 +76,7 @@ class ClassMetadataTest extends TestCase
             new PropertyMetadata(
                 MagicEntity::class,
                 'foo',
+                true,
                 [new ClassAttribute('magic')],
                 [new PropertyAttribute('magic_foo')]
             ),
@@ -83,6 +86,7 @@ class ClassMetadataTest extends TestCase
             new PropertyMetadata(
                 MagicEntity::class,
                 'bar',
+                false,
                 [new ClassAttribute('magic')],
                 [new PropertyAttribute('real_bar')]
             ),
@@ -92,6 +96,7 @@ class ClassMetadataTest extends TestCase
             new PropertyMetadata(
                 MagicEntity::class,
                 'baz',
+                true,
                 [new ClassAttribute('magic')],
                 [new PropertyAttribute('magic_baz')]
             ),
@@ -101,6 +106,7 @@ class ClassMetadataTest extends TestCase
             new PropertyMetadata(
                 MagicEntity::class,
                 'quux',
+                true,
                 [new ClassAttribute('magic')]
             ),
             $metadata->getPropertyMetadata('quux')

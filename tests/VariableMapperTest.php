@@ -57,6 +57,7 @@ class VariableMapperTest extends TestCase
             new PropertyMetadata(
                 SimpleEntity::class,
                 'd',
+                false,
                 [new ClassAttribute('simple')]
             ),
             $mapper->getPropertyMetadata('simple', 'd')

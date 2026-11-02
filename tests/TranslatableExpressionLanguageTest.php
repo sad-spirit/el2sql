@@ -162,6 +162,7 @@ class TranslatableExpressionLanguageTest extends TestCase
             ->with('simple', new PropertyMetadata(
                 SimpleEntity::class,
                 'd',
+                false,
                 [new ClassAttribute('simple')]
             ))
             ->willReturn($propTranslator = new ColumnReferenceTranslator('foo', 'bar'));

@@ -18,6 +18,7 @@ use PHPUnit\Framework\TestCase;
 use sad_spirit\el2sql\{
     ClassMetadata,
     PropertyMetadata,
+    attributes\PropertyToColumnMap,
     exceptions\MappingException,
     exceptions\OutOfBoundsException
 };
@@ -25,7 +26,10 @@ use sad_spirit\el2sql\tests\assets\{
     ClassAttribute,
     MagicEntity,
     PropertyAttribute,
+    PropertyMapWithoutPropertyTransformation,
+    PropertyMapWithPropertyTransformation,
     SimpleEntity,
+    invalid\AmbiguousColumn,
     invalid\InvalidRepeat,
     invalid\MagicPropertyConflictingWithReal,
     invalid\MagicPropertyWithClassAttribute,
@@ -143,5 +147,44 @@ class ClassMetadataTest extends TestCase
         $this::expectExceptionMessage('MagicProperty attribute accepts only attributes applicable to properties');
 
         new ClassMetadata(new \ReflectionClass(MagicPropertyWithClassAttribute::class));
+    }
+
+    public function testAmbiguousColumnMapping(): void
+    {
+        $this::expectException(MappingException::class);
+        $this::expectExceptionMessage('ambiguous');
+
+        new ClassMetadata(new \ReflectionClass(AmbiguousColumn::class));
+    }
+
+    public function testPropertyMapWithoutPropertyTransformation(): void
+    {
+        $metadata = new ClassMetadata(new \ReflectionClass(PropertyMapWithoutPropertyTransformation::class));
+        $this::assertEquals(
+            [new PropertyToColumnMap([
+                'foo'       => 'col_foo',
+                'magic_foo' => 'ooh_foo',
+                'bar'       => 'bar',
+                'baz'       => 'col_baz',
+                'magic_bar' => 'magic_bar',
+                'magic_baz' => 'ooh_baz',
+            ])],
+            $metadata->classAttributes
+        );
+    }
+
+    public function testPropertyMapWithPropertyTransformation(): void
+    {
+        $metadata = new ClassMetadata(new \ReflectionClass(PropertyMapWithPropertyTransformation::class));
+        $this::assertEquals(
+            [new PropertyToColumnMap([
+                'fooBar'    => 'ooh_foo_bar',
+                'magic_bar' => 'ooh_bar',
+                'barBaz'    => 'ooh_bar_baz',
+                'duh'       => 'duh_baz',
+                'magicFoo'  => 'ooh_magic_foo'
+            ])],
+            $metadata->classAttributes
+        );
     }
 }

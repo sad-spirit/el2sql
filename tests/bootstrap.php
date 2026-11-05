@@ -21,3 +21,9 @@ if (!\file_exists($autoloader)) {
 }
 
 require_once $autoloader;
+
+if (is_readable(__DIR__ . '/config.php')) {
+    require_once __DIR__ . '/config.php';
+} else {
+    require_once __DIR__ . '/config.php.dist';
+}

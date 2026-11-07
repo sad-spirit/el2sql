@@ -155,6 +155,8 @@ class TranslatedExpressionTest extends TestCase
             'a.b is distinct from null or a.b is not distinct from 1'
         ];
         yield ['1 + 2', '1 + 2'];
+        yield ['2 ** 3 ** 3', '2 ^ (3 ^ 3)'];
+        yield ['1 << 2 ^ 34 >> 5 | 6 & 7', '1 << 2 # (34 >> 5) | (6 & 7)'];
         yield ["'foo' ~ 'bar'", "'foo' || 'bar'"];
         yield [
             "a.b in c.d || a.b in ['foo', 'bar']",

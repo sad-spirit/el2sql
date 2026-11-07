@@ -260,7 +260,9 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
                     'or', '||' => new LogicalExpression([$left, $right], LogicalOperator::OR),
                     'and', '&&' => new LogicalExpression([$left, $right], LogicalOperator::AND),
                     '~' => new OperatorExpression('||', $left, $right),
-                    '>', '<', '>=', '<=', '+', '-', '*', '/', '%' =>
+                    '**' => new OperatorExpression('^', $left, $right),
+                    '^' => new OperatorExpression('#', $left, $right),
+                    '>', '<', '>=', '<=', '+', '-', '*', '/', '%', '&', '|', '>>', '<<' =>
                         new OperatorExpression($node->attributes['operator'], $left, $right),
                     '===' => new IsDistinctFromExpression($left, $right, true),
                     '!==' => new IsDistinctFromExpression($left, $right, false),

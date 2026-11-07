@@ -21,20 +21,28 @@ use sad_spirit\pg_builder\{
     enums\LogicalOperator,
     enums\SubselectConstruct,
     enums\SystemFunctionName,
-    nodes\ScalarExpression
+    nodes\QualifiedName,
+    nodes\ScalarExpression,
+    nodes\TypeName
 };
 use sad_spirit\pg_builder\nodes\expressions\{
     ArrayComparisonExpression,
     ArrayExpression,
     Constant,
+    FunctionExpression,
     IsDistinctFromExpression,
     LogicalExpression,
     NotExpression,
+    NumericConstant,
     OperatorExpression,
     SubselectExpression,
-    SystemFunctionCall
+    SystemFunctionCall,
+    TypecastExpression
 };
-use sad_spirit\pg_builder\nodes\lists\ExpressionList;
+use sad_spirit\pg_builder\nodes\lists\{
+    FunctionArgumentList,
+    ExpressionList
+};
 use sad_spirit\pg_gateway\{
     Condition,
     Fragment,
@@ -271,6 +279,53 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
                         new OperatorExpression($node->attributes['operator'], $left, $right),
                     '===' => new IsDistinctFromExpression($left, $right, true),
                     '!==' => new IsDistinctFromExpression($left, $right, false),
+                    '==' => new IsDistinctFromExpression(
+                        new TypecastExpression($left, new TypeName(new QualifiedName('text'))),
+                        new TypecastExpression($right, new TypeName(new QualifiedName('text'))),
+                        true
+                    ),
+                    '!=' => new IsDistinctFromExpression(
+                        new TypecastExpression($left, new TypeName(new QualifiedName('text'))),
+                        new TypecastExpression($right, new TypeName(new QualifiedName('text'))),
+                        false
+                    ),
+                    'contains' => new OperatorExpression(
+                        '!=',
+                        new NumericConstant('0'),
+                        new FunctionExpression(new QualifiedName('strpos'), new FunctionArgumentList([
+                            $left,
+                            $right
+                        ]))
+                    ),
+                    'starts with' => new FunctionExpression(
+                        new QualifiedName('starts_with'),
+                        new FunctionArgumentList([$left, $right])
+                    ),
+                    // https://stackoverflow.com/a/79726295
+                    '..' => new FunctionExpression(
+                        new QualifiedName('array_positions'),
+                        new FunctionArgumentList([
+                            new FunctionExpression(
+                                new QualifiedName('array_fill'),
+                                new FunctionArgumentList([
+                                    new NumericConstant('0'),
+                                    new ArrayExpression([
+                                        new OperatorExpression(
+                                            '+',
+                                            new OperatorExpression(
+                                                '-',
+                                                $right,
+                                                clone $left
+                                            ),
+                                            new NumericConstant('1')
+                                        )
+                                    ]),
+                                    new ArrayExpression([$left])
+                                ])
+                            ),
+                            new NumericConstant('0')
+                        ]),
+                    ),
                     default => throw new exceptions\UnexpectedValueException(\sprintf(
                         "Unable to translate binary operator '%s'",
                         (string)$node->attributes['operator']

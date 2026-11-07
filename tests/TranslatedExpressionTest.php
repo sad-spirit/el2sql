@@ -154,6 +154,10 @@ class TranslatedExpressionTest extends TestCase
             'a.b !== null or a.b === 1',
             'a.b is distinct from null or a.b is not distinct from 1'
         ];
+        yield [
+            'a.b != null or a.b == 1',
+            'a.b::"text" is distinct from null::"text" or a.b::"text" is not distinct from 1::"text"'
+        ];
         yield ['1 + 2', '1 + 2'];
         yield ['2 ** 3 ** 3', '2 ^ (3 ^ 3)'];
         yield ['1 << 2 ^ 34 >> 5 | 6 & 7', '1 << 2 # (34 >> 5) | (6 & 7)'];
@@ -170,6 +174,9 @@ class TranslatedExpressionTest extends TestCase
         yield ['a.b ?? 42', 'coalesce(a.b, 42)'];
         yield ['false && !true', 'false and not true'];
         yield ["foo(a.b, 1, 't' ~ 'wo')", "foo(a.b, 1, 't' || 'wo')"];
+        yield ["'foobarbaz' contains 'bar'", "0 != strpos('foobarbaz', 'bar')"];
+        yield ["'foobarbaz' starts with 'foo'", "starts_with('foobarbaz', 'foo')"];
+        yield ['5..10', 'array_positions(array_fill(0, array[10 - 5 + 1], array[5]), 0)'];
     }
 
     public static function unsupportedExpressionsProvider(): iterable

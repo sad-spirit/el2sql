@@ -18,6 +18,7 @@ use sad_spirit\pg_builder\{
     Node as SqlNode,
     SelectCommon,
     enums\ArrayComparisonConstruct,
+    enums\ConstantName,
     enums\LogicalOperator,
     enums\SubselectConstruct,
     enums\SystemFunctionName,
@@ -28,16 +29,19 @@ use sad_spirit\pg_builder\{
 use sad_spirit\pg_builder\nodes\expressions\{
     ArrayComparisonExpression,
     ArrayExpression,
+    CaseExpression,
     Constant,
     FunctionExpression,
     IsDistinctFromExpression,
+    KeywordConstant,
     LogicalExpression,
     NotExpression,
     NumericConstant,
     OperatorExpression,
     SubselectExpression,
     SystemFunctionCall,
-    TypecastExpression
+    TypecastExpression,
+    WhenExpression
 };
 use sad_spirit\pg_builder\nodes\lists\{
     FunctionArgumentList,
@@ -52,6 +56,7 @@ use Symfony\Component\ExpressionLanguage\{
     ParsedExpression,
     Node\ArrayNode,
     Node\BinaryNode,
+    Node\ConditionalNode,
     Node\ConstantNode,
     Node\FunctionNode,
     Node\GetAttrNode,
@@ -167,6 +172,7 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
             ArrayNode::class => $this->translateArrayNode($node),
             FunctionNode::class => $this->translateFunctionNode($node),
             NullCoalesceNode::class => $this->translateNullCoalesceNode($node),
+            ConditionalNode::class => $this->translateConditionalNode($node),
             default => throw new exceptions\UnexpectedValueException(\sprintf(
                 "Unable to translate node of class '%s'",
                 $node::class
@@ -382,5 +388,22 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
         $this->assertIsScalar($exprTwo = $this->translateNode($node->nodes['expr2']));
 
         return new SystemFunctionCall(SystemFunctionName::COALESCE, new ExpressionList([$exprOne, $exprTwo]));
+    }
+
+    /**
+     * Translates a ternary operator node to CASE expression
+     */
+    private function translateConditionalNode(ConditionalNode $node): CaseExpression
+    {
+        /** @var Node[] $node->nodes */
+        $this->assertIsScalar($exprOne = $this->translateNode($node->nodes['expr1']));
+        $this->assertIsScalar($exprTwo = $this->translateNode($node->nodes['expr2']));
+        $this->assertIsScalar($exprThree = $this->translateNode($node->nodes['expr3']));
+
+        return new CaseExpression(
+            [new WhenExpression(new KeywordConstant(ConstantName::TRUE), $exprTwo)],
+            $exprThree,
+            $exprOne,
+        );
     }
 }

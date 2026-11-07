@@ -1,10 +1,17 @@
-# sad_spirit/el2sql: Expression Language to SQL translator
+# sad_spirit/el2sql: ExpressionLanguage to SQL Translator
 
-Suppose we need to get all database records satisfying a condition written in [Symfony's ExpressionLanguage].
-We can fetch everything from the DB and then filter the result through `$expressionLanguage->evaluate()`,
-but a much nicer approach is to translate the expression to SQL and make the database do the job.
+One of the first examples given on Symfony's [ExpressionLanguage] page is
+```
+# Promote article to the homepage when
+article.commentCount > 100 and article.category not in ["misc"]
+```
 
-This package allows exactly this: given an ExpressionLanguage condition it generates a `WHERE` clause part
+Assuming articles are kept in the database, we may eventually want to fetch all articles that satisfy
+the above constraint. The na&iuml;ve way is to fetch everything and filter the result using
+`$expressionLanguage->evaluate()`, a nicer approach is to translate the expression to SQL
+and make the database do the job.
+
+**sad_spirit/el2sql** allows exactly this: given an ExpressionLanguage expression it generates a `WHERE` clause part
 in Postgres dialect of SQL.
 
 Let's start with a simple example: an expression using a single variable. Having a table with the following schema
@@ -41,7 +48,7 @@ final readonly class Document
 ```
 Note the attributes applied to the class, those describe how property accesses in an expression are translated to SQL.
 
-A DTO like this can be used as a variable in Expression Language expression
+A DTO like this can be used as a variable in ExpressionLanguage expression
 ```PHP
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 
@@ -95,30 +102,163 @@ from example.documents as self
 where self.doc_state = any(array['draft', 'published'])
 ```
 
-## How does this work?
+## How Does This Work?
 
-ExpressionLanguage has a `parse()` method that builds an AST for the expression.
+ExpressionLanguage has a `parse()` method that builds an
+[AST for the expression](https://symfony.com/doc/current/expression_language.html#ast-dumping-and-editing).
 This is then transformed into AST for Postgres dialect of SQL,
 which is represented using classes from [pg_builder package].
 
 Transforming ASTs is actually an easier part, the harder part is mapping of object properties to database columns and
 translating custom functions. 
 
-## What parts of ExpressionLanguage are supported
+## Features of ExpressionLanguage That are Currently Supported
 
-**TODO: list stuff that is supported and what it translates to**
+> [!WARNING]
+> Using features depending on PHP type juggling may lead to errors and / or incorrect results. In particular,
+> avoid 
+>  - non-strict comparisons `==` and `!=`;
+>  - ternary operator shorthands `foo ?: bar` and `foo ? bar`.
 
-## What parts of ExpressionLanguage are *not* supported
+### Literals
 
-### Object methods
+The only omission is hashes: these will *currently* be translated to Postgres arrays with their keys discarded.
+
+### Accessing Public Properties
+
+These are translated using implementations of `PropertyLookupTranslator` and `PropertyReferenceTranslator`.
+The former is used when there is a need to look up database rows, the latter when there is an object
+available representing a specific database row.
+
+As you can see in the above example, the simplest lookup translation is from a property name to a database column.
+
+The simplest reference translation is a query parameter with its value coming from an object's property.
+
+### Null-Coalescing Operator
+
+Translated to `COALESCE()` SQL construct, `a.b ?? 42` becomes `COALESCE(a.b, 42)`.
+
+### Working with Functions
+
+The package contains a `TranslatableExpressionFunction` class to represent functions that are
+translatable to SQL. Its constructor accepts an implementation of `FunctionTranslator` interface that
+should perform an actual translation.
+
+When an instance of `TranslatableExpressionFunction` is passed to `TranslatableExpressionLanguage::addFunction()`,
+its translator is registered and will be used to translate function invocations.
+
+### Operators
+
+#### Arithmetic Operators
+
+`+`, `-`, `*`, `/`, `%` operators are translated to the same ones in Postgres.
+
+`**` is translated to `^`, which is left-associative in Postgres, so parentheses may be added:
+```
+2 ** 3 ** 3
+```
+becomes
+```
+2 ^ (3 ^ 3)
+```
+
+> [!NOTE]
+> Postgres division operator `/` behaves like PHP's `intdiv()` function when its operands are integer:
+> ```
+> el2sql=# select 5 / 2, 5. / 2;
+> ?column?  |      ?column?
+> ----------+--------------------
+>        2  | 2.5000000000000000
+> ```
+
+
+#### Bitwise Operators
+
+`&`, `|`, `~`, `<<`, `>>` operators are translated to the same ones in Postgres, `^` (bitwise xor) is translated to `#`.
+
+All Postgres bitwise operators have the same precedence, so parentheses may be added.
+
+#### Comparison Operators
+
+ * `<`, `>`, `<=`, `>=` are translated to the same operators.
+ * `===` and `!==` are translated to `IS NOT DISTINCT FROM` and `IS DISTINCT FROM`, respectively. This is done so that
+   comparison with a `NULL` value will yield `TRUE` or `FALSE` rather than `NULL`.
+ * `==` and `!=` are translated to comparison of text representations, e.g. `a.b == c.d` yields
+   ```
+   a.b::text is not distinct from c.d::text
+   ```
+   This is done to allow *some* comparison of different types, but obviously
+   [PHP's type juggling rules](https://www.php.net/manual/en/language.types.type-juggling.php)
+   are not followed here. It is highly recommended to use *only* strict comparisons.
+ * `contains`: `'foobarbaz' contains 'bar'` is translated to `0 != strpos('foobarbaz', 'bar')`.
+ * `starts with`: `'foobarbaz' starts with 'foo'` is translated to `starts_with('foobarbaz', 'foo')`.
+ * `matches` and `ends with` are currently not supported.
+
+#### Logical Operators
+
+ * `not` and `!` are translated to `not`;
+ * `and` and `&&` are translated to `and`;
+ * `or` and `||` are translated to `or`;
+ * `xor` is not supported as there is no logical `xor` in Postgres. However, it is usually possible to replace
+   it with an inequality operator: `a !== b` where `a` and `b` are boolean will evaluate to `true` if
+   * `a` is `true` and `b` is `false` or
+   * `a` is `false` and `b` is `true`.
+
+#### String Operators
+
+`~` is translated to `||`.
+
+#### Array Operators
+
+ * `in`: `foo in bar` is translated to `foo = any(bar)`. Here `bar` may be either an array or a subquery, which is
+   quite useful when mapping properties to fields of related tables.
+ * `not in`: `foo not in bar` is translated to `foo <> all(bar)`. As above, `bar` may also be a subquery.
+
+#### Numeric Operators
+
+Range operator `..` maps to the `range()` function on PHP side. The closest Postgres equivalent to that is
+[`generate_series()`](https://www.postgresql.org/docs/current/functions-srf.html), but that returns multiple
+rows rather than an array. Thus, *currently* `..` is translated to an array built using `array_positions()` / 
+`array_fill()` so that the range may be used in scalar contexts.
+
+#### Ternary Operators
+
+`foo ? bar : baz` is translated to `case foo when true then bar else baz end`. As there is no type juggling
+on SQL side, `foo` should evaluate to boolean, `bar` and `baz` should have compatible types.
+
+## Features of ExpressionLanguage that will not be Supported
+
+### "Plain" Variables
+
+All variables used in expressions should be objects. Additionally, these objects / their classes should be
+mapped to variable names before translating the expression, as shown in the above example
+```PHP
+$language->getVariableMapper()
+    ->map('document', Document::class);
+```
+If there is a need to use some data that does not map to database objects, create a holder class (e.g. `Environment`)
+for that and add custom translators for its properties.
+
+### Calling Methods
 
 These do not have a suitable counterpart in Postgres. You'll have to use (virtual) public properties
 instead of getters or plain functions if there is a need to pass additional arguments.
 
-### Null-safe Operator
+### Null-Safe Operator
 
 It does not make sense in the context of this package: if a variable is missing
-then a lookup query should be built for that table.
+then a lookup query should be built for the corresponding table.
+
+### Array Offsets on Variables
+
+Using array offsets on variables implementing `ArrayAccess` is unlikely to be supported as there is
+no corresponding syntax feature on Postgres side.
+
+## Possible Enhancements
+
+* Mapping ExpressionLanguage hashes to JSON fields;
+* Array offsets on properties;
+* `matches` and `ends with` operators.
 
 ## Example
 
@@ -138,5 +278,5 @@ a department tree with employees linked to the branches of that.
 **TODO: add code**
 
 
-[Symfony's ExpressionLanguage]: https://symfony.com/doc/current/components/expression_language.html
+[ExpressionLanguage]: https://symfony.com/doc/current/components/expression_language.html
 [pg_builder package]: https://github.com/sad-spirit/pg-builder

@@ -158,6 +158,7 @@ class TranslatedExpressionTest extends TestCase
         yield ['2 ** 3 ** 3', '2 ^ (3 ^ 3)'];
         yield ['1 << 2 ^ 34 >> 5 | 6 & 7', '1 << 2 # (34 >> 5) | (6 & 7)'];
         yield ["'foo' ~ 'bar'", "'foo' || 'bar'"];
+        yield ['~ 1', '~ 1'];
         yield [
             "a.b in c.d || a.b in ['foo', 'bar']",
             "a.b = any( select d from c ) or a.b = any(array['foo', 'bar'])"
@@ -166,6 +167,7 @@ class TranslatedExpressionTest extends TestCase
             "a.b not in c.d && a.b not in ['foo', 'bar']",
             "a.b <> all( select d from c ) and a.b <> all(array['foo', 'bar'])"
         ];
+        yield ['a.b ?? 42', 'coalesce(a.b, 42)'];
         yield ['false && !true', 'false and not true'];
         yield ["foo(a.b, 1, 't' ~ 'wo')", "foo(a.b, 1, 't' || 'wo')"];
     }

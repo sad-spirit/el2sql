@@ -20,6 +20,7 @@ use sad_spirit\pg_builder\{
     enums\ArrayComparisonConstruct,
     enums\LogicalOperator,
     enums\SubselectConstruct,
+    enums\SystemFunctionName,
     nodes\ScalarExpression
 };
 use sad_spirit\pg_builder\nodes\expressions\{
@@ -30,8 +31,10 @@ use sad_spirit\pg_builder\nodes\expressions\{
     LogicalExpression,
     NotExpression,
     OperatorExpression,
-    SubselectExpression
+    SubselectExpression,
+    SystemFunctionCall
 };
+use sad_spirit\pg_builder\nodes\lists\ExpressionList;
 use sad_spirit\pg_gateway\{
     Condition,
     Fragment,
@@ -46,6 +49,7 @@ use Symfony\Component\ExpressionLanguage\{
     Node\GetAttrNode,
     Node\NameNode,
     Node\Node,
+    Node\NullCoalesceNode,
     Node\UnaryNode
 };
 
@@ -154,6 +158,7 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
             BinaryNode::class => $this->translateBinaryNode($node),
             ArrayNode::class => $this->translateArrayNode($node),
             FunctionNode::class => $this->translateFunctionNode($node),
+            NullCoalesceNode::class => $this->translateNullCoalesceNode($node),
             default => throw new exceptions\UnexpectedValueException(\sprintf(
                 "Unable to translate node of class '%s'",
                 $node::class
@@ -294,7 +299,7 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
     /**
      * Converts a FunctionNode to SQL representation using FunctionTranslators
      */
-    protected function translateFunctionNode(FunctionNode $node): ScalarExpression
+    private function translateFunctionNode(FunctionNode $node): ScalarExpression
     {
         /** @var Node[] $node->nodes */
         $functionName = (string)$node->attributes['name'];
@@ -310,5 +315,17 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
             $arguments[] = $this->translateNode($argument);
         }
         return $this->functionTranslators[$functionName]->translate(...$arguments);
+    }
+
+    /**
+     * Translates a node representing a null-coalescing operator to COALESCE() construct
+     */
+    private function translateNullCoalesceNode(NullCoalesceNode $node): SystemFunctionCall
+    {
+        /** @var Node[] $node->nodes */
+        $this->assertIsScalar($exprOne = $this->translateNode($node->nodes['expr1']));
+        $this->assertIsScalar($exprTwo = $this->translateNode($node->nodes['expr2']));
+
+        return new SystemFunctionCall(SystemFunctionName::COALESCE, new ExpressionList([$exprOne, $exprTwo]));
     }
 }

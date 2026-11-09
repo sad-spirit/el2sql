@@ -14,7 +14,10 @@ declare(strict_types=1);
 
 namespace sad_spirit\el2sql\tests;
 
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\{
+    TestCase,
+    Attributes\DataProvider
+};
 use sad_spirit\el2sql\{
     ClassMetadata,
     PropertyMetadata,
@@ -33,11 +36,13 @@ use sad_spirit\el2sql\tests\assets\{
     SimpleEntity,
     PassthroughFunctionTranslator
 };
+use sad_spirit\pg_builder\SqlBuilderWalker;
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 
 class TranslatableExpressionLanguageTest extends TestCase
 {
     use Psr6Mocks;
+    use NormalizeWhitespace;
 
     public function testMissingFunctionTranslator(): void
     {
@@ -56,10 +61,17 @@ class TranslatableExpressionLanguageTest extends TestCase
             'date',
             fn (...$args) => "\date('Y-m-d H:i:s')",
             fn ($p, ...$args) => \date('Y-m-d H:i:s'),
-            $translator = new PassthroughFunctionTranslator('date')
+            $translatorOne = new PassthroughFunctionTranslator('date')
         ));
+        $language->register(
+            'ddatte',
+            fn (...$args) => "\date('Y-m-d H:i:s')",
+            fn ($p, ...$args) => \date('Y-m-d H:i:s'),
+            $translatorTwo = new PassthroughFunctionTranslator('date')
+        );
 
-        $this::assertSame($translator, $language->getFunctionTranslator('date'));
+        $this::assertSame($translatorOne, $language->getFunctionTranslator('date'));
+        $this::assertSame($translatorTwo, $language->getFunctionTranslator('ddatte'));
     }
 
     public function testPropagatesCacheToVariableMapper(): void
@@ -188,5 +200,40 @@ class TranslatableExpressionLanguageTest extends TestCase
             ),
             $language->translate('foo(simple.d)', ['simple', 'magic'], ['magic'])
         );
+    }
+
+    #[DataProvider('builtinFunctionsProvider')]
+    public function testBuiltinFunctions(string $expression, string $translated): void
+    {
+        $mapper = $this->createMock(VariableMapper::class);
+        $mapper->expects($this::once())
+            ->method('getPropertyMetadata')
+            ->willReturn($metadata = new PropertyMetadata(
+                SimpleEntity::class,
+                'bar'
+            ));
+        $factory = $this->createMock(PropertyTranslatorFactory::class);
+        $factory->expects($this::once())
+            ->method('createLookupTranslator')
+            ->with('foo', $metadata)
+            ->willReturn($lookup = new ColumnReferenceTranslator('foo', 'bar'));
+
+        $language = new TranslatableExpressionLanguage(null, [], [$factory]);
+        $language->setVariableMapper($mapper);
+
+        $this::assertStringEqualsStringNormalizingWhitespace(
+            $translated,
+            $language->translate($expression, ['foo'])
+                ->getCondition()
+                ->generateExpression()
+                ->dispatch(new SqlBuilderWalker())
+        );
+    }
+
+    public static function builtinFunctionsProvider(): iterable
+    {
+        yield ['is_null(foo.bar)', 'foo.bar is null'];
+        yield ['min(10, foo.bar)', 'least(10, foo.bar)'];
+        yield ['max(foo.bar, 10)', 'greatest(foo.bar, 10)'];
     }
 }

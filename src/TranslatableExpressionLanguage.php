@@ -48,6 +48,28 @@ class TranslatableExpressionLanguage extends ExpressionLanguage
         }
     }
 
+    protected function registerFunctions(): void
+    {
+        parent::registerFunctions();
+        $this->addFunction(ExpressionFunction::fromPhp('is_null'));
+
+        $this->functionTranslators['min'] = new translators\functions\LeastTranslator();
+        $this->functionTranslators['max'] = new translators\functions\GreatestTranslator();
+        $this->functionTranslators['is_null'] = new translators\functions\IsNullTranslator();
+    }
+
+    public function register(
+        string $name,
+        callable $compiler,
+        callable $evaluator,
+        ?FunctionTranslator $translator = null
+    ): void {
+        parent::register($name, $compiler, $evaluator);
+        if (null !== $translator) {
+            $this->functionTranslators[$name] = $translator;
+        }
+    }
+
     public function addFunction(ExpressionFunction $function): void
     {
         parent::addFunction($function);

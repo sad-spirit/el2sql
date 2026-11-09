@@ -140,12 +140,21 @@ Translated to `COALESCE()` SQL construct, `a.b ?? 42` becomes `COALESCE(a.b, 42)
 
 ### Working with Functions
 
-The package contains a `TranslatableExpressionFunction` class to represent functions that are
-translatable to SQL. Its constructor accepts an implementation of `FunctionTranslator` interface that
-should perform an actual translation.
+Function invocations are translated by implementations of `FunctionTranslator` interface. These can be passed alongside
+other function properties when
+[registering functions](https://symfony.com/doc/current/expression_language.html#expression-language-extending):
+ * `TranslatableExpressionLanguage::register()` accepts an optional fourth argument type-hinted as `FunctionTranslator`.
+ * There is a `TranslatableExpressionFunction` class extending `ExpressionFunction`, its constructor accepts
+   an instance of `FunctionTranslator`. When an instance of `TranslatableExpressionFunction` is passed to 
+   `TranslatableExpressionLanguage::addFunction()` (either directly or via an implementation of
+   `ExpressionFunctionProviderInterface`) the translator is registered and will be used for that function invocations.
 
-When an instance of `TranslatableExpressionFunction` is passed to `TranslatableExpressionLanguage::addFunction()`,
-its translator is registered and will be used to translate function invocations.
+#### Builtin Functions
+
+ * `min()` function is translated to `LEAST()` (SQL `MIN()` function is aggregate).
+ * `max()` function is translated to `GREATEST()`.
+
+Additionally, `is_null()` PHP function is registered and its invocation is translated to `IS NULL` SQL construct.
 
 ### Operators
 
@@ -224,7 +233,7 @@ rows rather than an array. Thus, *currently* `..` is translated to an array buil
 #### Ternary Operators
 
 `foo ? bar : baz` is translated to `case foo when true then bar else baz end`. As there is no type juggling
-on SQL side, `foo` should evaluate to boolean, `bar` and `baz` should have compatible types.
+on SQL side, `foo` should evaluate to boolean, types of `bar` and `baz` should be compatible.
 
 ## Features of ExpressionLanguage that will not be Supported
 

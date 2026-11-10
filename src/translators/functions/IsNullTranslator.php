@@ -39,6 +39,7 @@ final class IsNullTranslator implements FunctionTranslator
         if (1 !== \count($arguments)) {
             throw new InvalidArgumentException('IS NULL accepts only one argument');
         }
+        /** @var non-empty-array<ScalarExpression> $scalar */
         $scalar = $this->convertToScalar(...$arguments);
         return new IsExpression(\reset($scalar), IsPredicate::NULL);
     }

@@ -1,3 +1,6 @@
+[![Continuous Integration](https://github.com/sad-spirit/el2sql/actions/workflows/continuous-integration.yml/badge.svg?branch=master)](https://github.com/sad-spirit/el2sql/actions/workflows/continuous-integration.yml)
+[![Static Analysis](https://github.com/sad-spirit/el2sql/actions/workflows/static-analysis.yml/badge.svg?branch=master)](https://github.com/sad-spirit/el2sql/actions/workflows/static-analysis.yml)
+
 # sad_spirit/el2sql: ExpressionLanguage to SQL Translator
 
 One of the first examples given on Symfony's [ExpressionLanguage] page is

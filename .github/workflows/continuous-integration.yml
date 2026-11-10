@@ -1,0 +1,71 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.operating-system }}
+
+    strategy:
+      matrix:
+        postgres-version: ['15', '19rc1']
+        operating-system: ['ubuntu-latest']
+        php-version: ['8.2', '8.3', '8.4', '8.5', '8.6']
+        include:
+          - php-version: '8.6'
+            composer-flags: '--ignore-platform-req=php+'
+
+    name: CI on ${{ matrix.operating-system }} with PHP ${{ matrix.php-version }} and PostgreSQL ${{ matrix.postgres-version }}
+
+    services:
+      postgres:
+        image: "postgres:${{ matrix.postgres-version }}"
+        env:
+          POSTGRES_PASSWORD: "postgres"
+
+        options: >-
+          --health-cmd "pg_isready"
+
+        ports:
+          - "5432:5432"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-${{ matrix.php-version }}-
+
+      - name: Install dependencies with Composer
+        run: |
+          composer update --no-interaction --prefer-dist --no-progress ${{ matrix.composer-flags }}
+
+      - name: Create test database
+        run: psql -c 'create database el2sql_test' -U postgres -h 127.0.0.1
+        env:
+          PGPASSWORD: postgres
+
+      - name: Run PHPUnit
+        run: |
+          vendor/bin/phpunit --configuration ci/github-phpunit.xml

@@ -19,6 +19,8 @@ use sad_spirit\el2sql\{
     PropertyMetadata,
     PropertyReferenceTranslator,
     PropertyTranslatorFactory,
+    attributes\CustomLookup,
+    attributes\CustomReference,
     attributes\PropertyToColumnMap,
     attributes\Table,
     attributes\TranslatorAttribute,
@@ -53,6 +55,11 @@ final class DefaultPropertyTranslatorFactory implements PropertyTranslatorFactor
                 );
             }
         }
+        foreach ($property->propertyAttributes as $attribute) {
+            if ($attribute instanceof CustomLookup) {
+                return new ($attribute->name)($this->tableLocator, $variableName, $property);
+            }
+        }
 
         return null;
     }
@@ -75,6 +82,11 @@ final class DefaultPropertyTranslatorFactory implements PropertyTranslatorFactor
                     $this->tableLocator->getTypeConverterFactory()
                         ->createTypeNameNodeForOID($column->typeOID)
                 );
+            }
+        }
+        foreach ($property->propertyAttributes as $attribute) {
+            if ($attribute instanceof CustomReference) {
+                return new ($attribute->name)($this->tableLocator, $variableName, $property);
             }
         }
 

@@ -21,6 +21,7 @@ use sad_spirit\el2sql\{
     PropertyTranslatorFactory,
     attributes\CustomLookup,
     attributes\CustomReference,
+    attributes\Parameter,
     attributes\PropertyToColumnMap,
     attributes\Table,
     attributes\TranslatorAttribute,
@@ -42,6 +43,11 @@ final class DefaultPropertyTranslatorFactory implements PropertyTranslatorFactor
 
     public function createLookupTranslator(string $variableName, PropertyMetadata $property): ?PropertyLookupTranslator
     {
+        foreach ($property->propertyAttributes as $attribute) {
+            if ($attribute instanceof CustomLookup) {
+                return new ($attribute->name)($this->tableLocator, $variableName, $property);
+            }
+        }
         foreach ($property->classAttributes as $attribute) {
             if (
                 $attribute instanceof PropertyToColumnMap
@@ -55,11 +61,6 @@ final class DefaultPropertyTranslatorFactory implements PropertyTranslatorFactor
                 );
             }
         }
-        foreach ($property->propertyAttributes as $attribute) {
-            if ($attribute instanceof CustomLookup) {
-                return new ($attribute->name)($this->tableLocator, $variableName, $property);
-            }
-        }
 
         return null;
     }
@@ -68,6 +69,17 @@ final class DefaultPropertyTranslatorFactory implements PropertyTranslatorFactor
         string $variableName,
         PropertyMetadata $property
     ): ?PropertyReferenceTranslator {
+        foreach ($property->propertyAttributes as $attribute) {
+            if ($attribute instanceof CustomReference) {
+                return new ($attribute->name)($this->tableLocator, $variableName, $property);
+            } elseif ($attribute instanceof Parameter) {
+                $typeName = null === $attribute->type
+                    ? null
+                    : $this->tableLocator->getParser()
+                        ->parseTypeName($attribute->type);
+                return new properties\ParameterTranslator($variableName, $property->propertyName, $typeName);
+            }
+        }
         foreach ($property->classAttributes as $attribute) {
             if (
                 $attribute instanceof PropertyToColumnMap
@@ -82,11 +94,6 @@ final class DefaultPropertyTranslatorFactory implements PropertyTranslatorFactor
                     $this->tableLocator->getTypeConverterFactory()
                         ->createTypeNameNodeForOID($column->typeOID)
                 );
-            }
-        }
-        foreach ($property->propertyAttributes as $attribute) {
-            if ($attribute instanceof CustomReference) {
-                return new ($attribute->name)($this->tableLocator, $variableName, $property);
             }
         }
 

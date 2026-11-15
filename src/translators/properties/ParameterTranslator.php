@@ -29,13 +29,15 @@ final readonly class ParameterTranslator implements PropertyReferenceTranslator
     public function __construct(
         private string $tableAlias,
         private string $propertyName,
-        private TypeName $typeName,
+        private ?TypeName $typeName = null,
     ) {
     }
 
-    public function translate(): TypecastExpression
+    public function translate(): TypecastExpression|NamedParameter
     {
-        return new TypecastExpression(new NamedParameter($this->getParameterName()), clone $this->typeName);
+        return null === $this->typeName
+            ? new NamedParameter($this->getParameterName())
+            : new TypecastExpression(new NamedParameter($this->getParameterName()), clone $this->typeName);
     }
 
     public function getQueryParameters(object $value): array

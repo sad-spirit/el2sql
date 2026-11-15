@@ -349,7 +349,7 @@ rows rather than an array. Thus, *currently* `..` is translated to an array buil
 `foo ? bar : baz` is translated to `case foo when true then bar else baz end`. As there is no type juggling
 on SQL side, `foo` should evaluate to boolean, types of `bar` and `baz` should be compatible.
 
-## Features of ExpressionLanguage that will not be Supported
+## Features of ExpressionLanguage That Will not be Supported
 
 ### "Plain" Variables
 
@@ -360,7 +360,8 @@ $language->getVariableMapper()
     ->map('document', Document::class);
 ```
 If there is a need to use some data that does not map to database objects, create a holder class (e.g. `Environment`)
-for that and add custom translators for its properties.
+for that and add `Parameter` attribute to its properties
+(or create some custom translators if special handling is required).
 
 ### Calling Methods
 

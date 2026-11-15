@@ -27,9 +27,11 @@ use sad_spirit\el2sql\{
     exceptions\InvalidArgumentException,
     tests\DatabaseBackedTestCase
 };
-use sad_spirit\el2sql\tests\assets\db\{
-    Foo,
-    NoTable
+use sad_spirit\el2sql\tests\assets\{
+    NullLookupTranslator,
+    NullReferenceTranslator,
+    db\Foo,
+    db\NoTable
 };
 use sad_spirit\el2sql\translators\{
     DefaultPropertyTranslatorFactory,
@@ -51,7 +53,7 @@ class DefaultPropertyTranslatorFactoryTest extends DatabaseBackedTestCase
         self::executeSqlFromFile(self::$connection, 'simple-drop.sql');
     }
 
-    public function testIgnoresPropertiesWithoutMappedColumns(): void
+    public function testIgnoresPropertiesWithoutMappedColumnsOrSpecificAttributes(): void
     {
         $mapper  = (new VariableMapper())
             ->map('notable', NoTable::class)
@@ -78,7 +80,7 @@ class DefaultPropertyTranslatorFactoryTest extends DatabaseBackedTestCase
         $factory->createLookupTranslator('error', $mapper->getPropertyMetadata('error', 'name'));
     }
 
-    public function testTranslatesLookups(): void
+    public function testCreatesLookupTranslatorsForMappedColumns(): void
     {
         $varMapper = (new VariableMapper())->map('foo', Foo::class);
         $factory   = new DefaultPropertyTranslatorFactory($locator = new TableLocator(self::$connection));
@@ -103,7 +105,7 @@ class DefaultPropertyTranslatorFactoryTest extends DatabaseBackedTestCase
         );
     }
 
-    public function testTranslatesReferences(): void
+    public function testCreatesReferenceTranslatorsForMappedColumns(): void
     {
         $varMapper = (new VariableMapper())->map('foo', Foo::class);
         $factory   = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
@@ -134,5 +136,58 @@ class DefaultPropertyTranslatorFactoryTest extends DatabaseBackedTestCase
             ),
             $factory->createReferenceTranslator('foo', $varMapper->getPropertyMetadata('foo', 'desc'))
         );
+    }
+
+    public function testCreatesTranslatorsUsingParameterAttribute(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('notable', NoTable::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::assertNull(
+            $factory->createLookupTranslator('notable', $mapper->getPropertyMetadata('notable', 'typed'))
+        );
+        $this::assertNull(
+            $factory->createLookupTranslator('notable', $mapper->getPropertyMetadata('notable', 'untyped'))
+        );
+
+        $typeName = new TypeName(new QualifiedName('pg_catalog', 'int4'));
+        $typeName->setBounds([-1]);
+        $this::assertEquals(
+            new ParameterTranslator('notable', 'typed', $typeName),
+            $factory->createReferenceTranslator('notable', $mapper->getPropertyMetadata('notable', 'typed'))
+        );
+        $this::assertEquals(
+            new ParameterTranslator('notable', 'untyped'),
+            $factory->createReferenceTranslator('notable', $mapper->getPropertyMetadata('notable', 'untyped'))
+        );
+    }
+
+    public function testCreatesTranslatorsUsingCustomLookupAttribute(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('notable', NoTable::class);
+        $factory = new DefaultPropertyTranslatorFactory($locator = new TableLocator(self::$connection));
+
+        $property = $mapper->getPropertyMetadata('notable', 'custom');
+        $this::assertNull($factory->createLookupTranslator('notable', $property));
+        $this::assertEquals(
+            new NullReferenceTranslator($locator, 'notable', $property),
+            $factory->createReferenceTranslator('notable', $property)
+        );
+    }
+
+    public function testCreatesTranslatorsUsingCustomReferenceAttribute(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory($locator = new TableLocator(self::$connection));
+
+        $property = $mapper->getPropertyMetadata('foo', 'custom');
+        $this::assertEquals(
+            new NullLookupTranslator($locator, 'foo', $property),
+            $factory->createLookupTranslator('foo', $property)
+        );
+        $this::assertNull($factory->createReferenceTranslator('foo', $property));
     }
 }

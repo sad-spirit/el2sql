@@ -14,8 +14,12 @@ declare(strict_types=1);
 
 namespace sad_spirit\el2sql\tests\assets\db;
 
-use sad_spirit\el2sql\attributes\Column;
-use sad_spirit\el2sql\attributes\Table;
+use sad_spirit\el2sql\attributes\{
+    Column,
+    CustomLookup,
+    Table
+};
+use sad_spirit\el2sql\tests\assets\NullLookupTranslator;
 
 #[Table('simple', 'foo')]
 final readonly class Foo
@@ -27,7 +31,9 @@ final readonly class Foo
         #[Column('name')]
         public string $fooName,
         #[Column('description')]
-        public ?string $desc
+        public ?string $desc,
+        #[CustomLookup(NullLookupTranslator::class)]
+        public ?string $custom
     ) {
     }
 }

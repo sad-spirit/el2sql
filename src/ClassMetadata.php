@@ -222,6 +222,7 @@ readonly class ClassMetadata
             ));
         }
 
+        /** @psalm-suppress RedundantConditionGivenDocblockType */
         assert($attribute instanceof attributes\TranslatorAttribute);
         return $attribute;
     }

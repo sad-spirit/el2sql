@@ -22,3 +22,30 @@ create table simple.bar (
         references simple.foo (id)
         on delete restrict on update restrict
 );
+
+create table simple.baz (
+    foo_id integer not null,
+    bar_id integer not null,
+    name text not null,
+
+    constraint baz_pkey primary key (foo_id, bar_id),
+    constraint baz_foo_fkey foreign key (foo_id)
+        references simple.foo (id)
+        on delete restrict on update restrict,
+    constraint baz_bar_fkey foreign key (bar_id)
+        references simple.bar (id)
+        on delete restrict on update restrict
+);
+
+create table simple.nopkey (
+    foo_id integer not null,
+    foo_another_id integer not null,
+    stuff text not null,
+
+    constraint nopkey_foo_fkey foreign key (foo_id)
+        references simple.foo (id)
+        on delete restrict on update restrict,
+    constraint nopkey_foo_another_fkey foreign key (foo_another_id)
+        references simple.foo (id)
+        on delete restrict on update restrict
+);

@@ -20,7 +20,9 @@ use sad_spirit\pg_builder\nodes\{
 };
 use sad_spirit\pg_gateway\{
     TableLocator,
+    conditions\ForeignKeyCondition,
     metadata\Column,
+    metadata\TableName
 };
 use sad_spirit\el2sql\{
     VariableMapper,
@@ -30,13 +32,17 @@ use sad_spirit\el2sql\{
 use sad_spirit\el2sql\tests\assets\{
     NullLookupTranslator,
     NullReferenceTranslator,
+    db\Bar,
+    db\Baz,
     db\Foo,
     db\NoTable
 };
 use sad_spirit\el2sql\translators\{
     DefaultPropertyTranslatorFactory,
     properties\ColumnReferenceTranslator,
-    properties\ParameterTranslator
+    properties\ParameterTranslator,
+    properties\SubselectLookupTranslator,
+    properties\SubselectReferenceTranslator
 };
 
 class DefaultPropertyTranslatorFactoryTest extends DatabaseBackedTestCase
@@ -189,5 +195,180 @@ class DefaultPropertyTranslatorFactoryTest extends DatabaseBackedTestCase
             $factory->createLookupTranslator('foo', $property)
         );
         $this::assertNull($factory->createReferenceTranslator('foo', $property));
+    }
+
+    public function testSubselectTranslatorWithInvalidTable(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(\InvalidArgumentException::class);
+        $this::expectExceptionMessage('does not exist');
+
+        $property = $mapper->getPropertyMetadata('foo', 'invalidTable');
+        $factory->createLookupTranslator('foo', $property);
+    }
+
+    public function testSubselectTranslatorWithInvalidColumn(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(\OutOfBoundsException::class);
+        $this::expectExceptionMessage('does not exist');
+
+        $property = $mapper->getPropertyMetadata('foo', 'invalidColumn');
+        $factory->createLookupTranslator('foo', $property);
+    }
+
+    public function testSubselectTranslatorWithDefaultColumnNoPrimaryKey(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(InvalidArgumentException::class);
+        $this::expectExceptionMessage('no primary key');
+
+        $property = $mapper->getPropertyMetadata('foo', 'defaultNoPkey');
+        $factory->createLookupTranslator('foo', $property);
+    }
+
+    public function testSubselectTranslatorWithDefaultColumnCompositePrimaryKey(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(InvalidArgumentException::class);
+        $this::expectExceptionMessage('composite primary key');
+
+        $property = $mapper->getPropertyMetadata('foo', 'defaultCompositePkey');
+        $factory->createLookupTranslator('foo', $property);
+    }
+
+    public function testSubselectTranslatorWithMissingForeignKey(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('bar', Bar::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(\InvalidArgumentException::class);
+        $this::expectExceptionMessage('No matching foreign keys');
+
+        $property = $mapper->getPropertyMetadata('bar', 'missingForeignKey');
+        $factory->createLookupTranslator('bar', $property);
+    }
+
+    public function testSubselectTranslatorWithAmbiguousForeignKey(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(\InvalidArgumentException::class);
+        $this::expectExceptionMessage('Several matching foreign keys');
+
+        $property = $mapper->getPropertyMetadata('foo', 'ambiguousForeignKey');
+        $factory->createLookupTranslator('foo', $property);
+    }
+
+    public function testSubselectTranslatorWithExplicitForeignKey(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory($locator = new TableLocator(self::$connection));
+
+        $property = $mapper->getPropertyMetadata('foo', 'stuff');
+        $gateway  = $locator->createGateway('simple.nopkey');
+
+        $this::assertEquals(
+            new SubselectLookupTranslator(
+                'foo',
+                $gateway,
+                $gateway->getDefinition()->getColumns()->get('stuff'),
+                new ForeignKeyCondition(
+                    $gateway->getDefinition()->getReferences()->get(new TableName('simple', 'foo'), ['foo_id']),
+                    false
+                ),
+                false,
+            ),
+            $factory->createLookupTranslator('foo', $property)
+        );
+
+        $typeName = new TypeName(new QualifiedName('text'));
+        $typeName->setBounds([-1]);
+        $this::assertEquals(
+            new ParameterTranslator('foo', 'stuff', $typeName),
+            $factory->createReferenceTranslator('foo', $property)
+        );
+    }
+
+    public function testSubselectTranslatorWithDefaultColumn(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('foo', Foo::class);
+        $factory = new DefaultPropertyTranslatorFactory($locator = new TableLocator(self::$connection));
+
+        $property = $mapper->getPropertyMetadata('foo', 'bars');
+        $gateway  = $locator->createGateway('simple.bar');
+
+        $this::assertEquals(
+            new SubselectLookupTranslator(
+                'foo',
+                $gateway,
+                $gateway->getDefinition()->getColumns()->get('id'),
+                new ForeignKeyCondition(
+                    $gateway->getDefinition()->getReferences()->get(new TableName('simple', 'foo')),
+                    false
+                ),
+                false,
+            ),
+            $factory->createLookupTranslator('foo', $property)
+        );
+
+        $typeName = new TypeName(new QualifiedName('int4'));
+        $typeName->setBounds([-1]);
+        $this::assertEquals(
+            new ParameterTranslator('foo', 'bars', $typeName),
+            $factory->createReferenceTranslator('foo', $property)
+        );
+    }
+
+    public function testLazySubselectReferenceTranslator(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('bar', Bar::class);
+        $factory = new DefaultPropertyTranslatorFactory($locator = new TableLocator(self::$connection));
+
+        $property = $mapper->getPropertyMetadata('bar', 'fooName');
+        $gateway  = $locator->createGateway('simple.foo');
+
+        $this::assertEquals(
+            new SubselectReferenceTranslator(
+                'bar',
+                $gateway,
+                $gateway->getDefinition()->getColumns()->get('name'),
+                $gateway->getDefinition()->getReferences()->get(new TableName('simple', 'bar')),
+                ['foo_id' => ['fooId', new TypeName(new QualifiedName('int4'))]],
+                true
+            ),
+            $factory->createReferenceTranslator('bar', $property)
+        );
+    }
+
+    public function testLazySubselectReferenceMissingProperty(): void
+    {
+        $mapper  = (new VariableMapper())
+            ->map('baz', Baz::class);
+        $factory = new DefaultPropertyTranslatorFactory(new TableLocator(self::$connection));
+
+        $this::expectException(InvalidArgumentException::class);
+        $this::expectExceptionMessage('does not have a property');
+
+        $property = $mapper->getPropertyMetadata('baz', 'missingFoo');
+        $factory->createReferenceTranslator('bar', $property);
     }
 }

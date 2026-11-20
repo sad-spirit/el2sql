@@ -17,9 +17,11 @@ namespace sad_spirit\el2sql\tests\assets\db;
 use sad_spirit\el2sql\attributes\{
     Column,
     CustomLookup,
+    Subselect,
     Table
 };
 use sad_spirit\el2sql\tests\assets\NullLookupTranslator;
+use sad_spirit\pg_gateway\metadata\TableName;
 
 #[Table('simple', 'foo')]
 final readonly class Foo
@@ -33,7 +35,21 @@ final readonly class Foo
         #[Column('description')]
         public ?string $desc,
         #[CustomLookup(NullLookupTranslator::class)]
-        public ?string $custom
+        public ?string $custom,
+        #[Subselect(new TableName('simple', 'bar'))]
+        public array $bars,
+        #[Subselect(new TableName('simple', 'nopkey'), 'stuff', ['foo_id'])]
+        public array $stuff,
+        #[Subselect(new TableName('simple', 'missing'))]
+        public array $invalidTable,
+        #[Subselect(new TableName('simple', 'bar'), 'missing')]
+        public array $invalidColumn,
+        #[Subselect(new TableName('simple', 'nopkey'), foreignKey: ['foo_id'])]
+        public array $defaultNoPkey,
+        #[Subselect(new TableName('simple', 'baz'))]
+        public array $defaultCompositePkey,
+        #[Subselect(new TableName('simple', 'nopkey'), 'stuff')]
+        public array $ambiguousForeignKey
     ) {
     }
 }

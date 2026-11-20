@@ -307,6 +307,19 @@ readonly class TranslatedExpression implements ExtraFragmentsProvider
                         new QualifiedName('starts_with'),
                         new FunctionArgumentList([$left, $right])
                     ),
+                    'ends with' => new FunctionExpression(
+                        new QualifiedName('starts_with'),
+                        new FunctionArgumentList([
+                            new FunctionExpression(
+                                new QualifiedName('reverse'),
+                                new FunctionArgumentList([$left])
+                            ),
+                            new FunctionExpression(
+                                new QualifiedName('reverse'),
+                                new FunctionArgumentList([$right])
+                            )
+                        ])
+                    ),
                     // https://stackoverflow.com/a/79726295
                     '..' => new FunctionExpression(
                         new QualifiedName('array_positions'),

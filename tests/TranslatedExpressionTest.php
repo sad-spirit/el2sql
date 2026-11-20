@@ -176,6 +176,7 @@ class TranslatedExpressionTest extends TestCase
         yield ["foo(a.b, 1, 't' ~ 'wo')", "foo(a.b, 1, 't' || 'wo')"];
         yield ["'foobarbaz' contains 'bar'", "0 != strpos('foobarbaz', 'bar')"];
         yield ["'foobarbaz' starts with 'foo'", "starts_with('foobarbaz', 'foo')"];
+        yield ["'foobarbaz' ends with 'baz'", "starts_with(reverse('foobarbaz'), reverse('baz'))"];
         yield ['5..10', 'array_positions(array_fill(0, array[10 - 5 + 1], array[5]), 0)'];
         yield ["a.b ? 'yes' : 'no'", "case a.b when true then 'yes' else 'no' end"];
     }

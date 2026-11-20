@@ -177,7 +177,7 @@ use sad_spirit\pg_wrapper\Connection;
 $connection  = new Connection('...');
 $locator     = new TableLocator($connection);
 $language    = new TranslatableExpressionLanguage(null, [], [new DefaultPropertyTranslatorFactory($locator)]);
-// This builds a mapping from class properties to their representations in SQL, used later in translation 
+// This reads and preprocesses class metadata that will be used to translate property accesses to SQL representation
 $language->getVariableMapper()
     ->map('article', Article::class);
 
@@ -315,7 +315,9 @@ All Postgres bitwise operators have the same precedence, so parentheses may be a
    are not followed here. It is highly recommended to use *only* strict comparisons.
  * `contains`: `'foobarbaz' contains 'bar'` is translated to `0 != strpos('foobarbaz', 'bar')`.
  * `starts with`: `'foobarbaz' starts with 'foo'` is translated to `starts_with('foobarbaz', 'foo')`.
- * `matches` and `ends with` are currently not supported.
+ * `ends with`: `'foobarbaz' ends with 'baz'` is translated to `starts_with(reverse('foobarbaz'), reverse('baz'))`
+   (as there is no `ends_with()` function in Postgres).
+ * `matches` is currently not supported.
 
 #### Logical Operators
 
@@ -357,7 +359,7 @@ All variables used in expressions should be objects. Additionally, these objects
 mapped to variable names before translating the expression, as shown in the above example
 ```PHP
 $language->getVariableMapper()
-    ->map('document', Document::class);
+    ->map('article', Article::class);
 ```
 If there is a need to use some data that does not map to database objects, create a holder class (e.g. `Environment`)
 for that and add `Parameter` attribute to its properties
@@ -382,7 +384,7 @@ no corresponding syntax feature on Postgres side.
 
 * Mapping ExpressionLanguage hashes to JSON fields;
 * Array offsets on properties;
-* `matches` and `ends with` operators.
+* `matches` operator.
 
 ## Expression with Multiple Variables
 

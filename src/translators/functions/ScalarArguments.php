@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace sad_spirit\el2sql\translators\functions;
 
+use sad_spirit\el2sql\exceptions\UnexpectedValueException;
 use sad_spirit\pg_builder\SelectCommon;
 use sad_spirit\pg_builder\nodes\{
     ScalarExpression,
@@ -35,5 +36,22 @@ trait ScalarArguments
                 : new SubselectExpression($argument),
             $arguments
         );
+    }
+
+    /**
+     * Throws an exception if $arguments contain non-scalar items
+     *
+     * @psalm-assert ScalarExpression[] $arguments
+     */
+    protected function assertIsScalar(SelectCommon|ScalarExpression ...$arguments): void
+    {
+        foreach ($arguments as $argument) {
+            if (!$argument instanceof ScalarExpression) {
+                throw new UnexpectedValueException(\sprintf(
+                    "Expected an implementation of ScalarExpression, got %s",
+                    $argument::class
+                ));
+            }
+        }
     }
 }

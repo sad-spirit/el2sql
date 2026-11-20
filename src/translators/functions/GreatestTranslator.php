@@ -34,9 +34,7 @@ final class GreatestTranslator implements FunctionTranslator
 
     public function translate(SelectCommon|ScalarExpression ...$arguments): ScalarExpression
     {
-        return new SystemFunctionCall(
-            SystemFunctionName::GREATEST,
-            new ExpressionList($this->convertToScalar(...$arguments))
-        );
+        $this->assertIsScalar(...$arguments);
+        return new SystemFunctionCall(SystemFunctionName::GREATEST, new ExpressionList($arguments));
     }
 }

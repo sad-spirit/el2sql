@@ -34,9 +34,7 @@ final class LeastTranslator implements FunctionTranslator
 
     public function translate(SelectCommon|ScalarExpression ...$arguments): ScalarExpression
     {
-        return new SystemFunctionCall(
-            SystemFunctionName::LEAST,
-            new ExpressionList($this->convertToScalar(...$arguments))
-        );
+        $this->assertIsScalar(...$arguments);
+        return new SystemFunctionCall(SystemFunctionName::LEAST, new ExpressionList($arguments));
     }
 }

@@ -32,7 +32,8 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "sad_spirit\\el2sql\\tests\\": "tests/"
+      "sad_spirit\\el2sql\\tests\\": "tests/",
+      "sad_spirit\\el2sql\\example\\": "docs/example/"
     }
   }
 }

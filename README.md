@@ -65,6 +65,7 @@ use sad_spirit\el2sql\attributes\{
 final class Article
 {
     private ?int $commentCount = null;
+    private readonly \Closure $commentCountLoader;
 
     public function __construct(
         public readonly int $id,
@@ -72,8 +73,9 @@ final class Article
         public readonly string $text,
         public readonly string $state,
         public readonly string $category,
-        private readonly callable $commentCountLoader
+        callable $commentCountLoader
     ) {
+        $this->commentCountLoader = $commentCountLoader(...);
     }
 
     public function __get(string $name): mixed
@@ -81,7 +83,7 @@ final class Article
         if ('commentCount' === $name) {
             return $this->commentCount ??= (int)($this->commentCountLoader)($this->id);
         }
-        throw new \BadMethodCallException("Wrong property '$name'");
+        throw new \InvalidArgumentException("Wrong property '$name'");
     }
 }
 ```
@@ -390,18 +392,209 @@ no corresponding syntax feature on Postgres side.
 
 Let's consider a more complex business rule that may appear in some document approval scenario:
 ```
-document.author in employee.subordinates
+document.authorId === employee.id or
+document.authorId in employee.subordinates or
+employee.id in document.approvalParticipants
 ```
 
-Two types of queries are possible based on that
-- Fetch all documents that are authored by subordinates of the given employee;
-- Fetch all managers for the author of the given document.
+Basically, we grant document access to its author, managers of the author, and employees
+explicitly chosen for document approval.
 
-Additionally, while `document.author` will probably map to a column of the `documents` table,
-`employee.subordinates` will probably not be that simple: subordination is often represented using
-a department tree with employees linked to the branches of that.
+The subordinate relationship between employees is expressed through the `departments` table
+[in the schema](./docs/example/schema.sql): it stores the hierarchical structure of the company
+using adjacency list model. Thus, we'll need recursive queries to translate `employee.subordinates`
+property to SQL representation. Other properties can be translated using the means already present
+in the package.
 
-**TODO: add code**
+Two types of queries are possible based on the expression with these variables:
+- Fetch all documents that are accessible to the given employee. This will use lookup translators
+  for properties of `document` and reference translators for properties of `employee`.
+- Fetch all employees that can access the given document, with the used translators reversed.
+
+Let's build both of the above queries. As the code is verbose, most of it is in separate files:
+ * [Database schema](./docs/example/schema.sql) and [example data](./docs/example/data.sql);
+ * Classes representing [`document`](./docs/example/Document.php) (with eagerly-loaded `approvalParticipants` property)
+   and [`employee`](./docs/example/Employee.php) (with lazy-loaded `$subordinates` property);
+ * Custom translators for [lookup](./docs/example/SubordinatesLookupTranslator.php) and
+   [referencing](./docs/example/SubordinatesReferenceTranslator.php) of `$subordinates` property,
+   both using [a class](./docs/example/WithSubdepartmentsFragment.php) for adding a `WITH RECURSIVE ...` clause.
+
+```PHP
+namespace sad_spirit\el2sql\example;
+
+use sad_spirit\el2sql\{
+    TranslatableExpressionLanguage,
+    fragments\ResetAliasFragment,
+    translators\DefaultPropertyTranslatorFactory
+};
+use sad_spirit\pg_gateway\{
+    FragmentList,
+    TableLocator,
+    builders\FluentBuilder as Bu
+};
+use sad_spirit\pg_wrapper\Connection;
+
+$expression = <<<EXPRESSION
+document.authorId === employee.id or
+document.authorId in employee.subordinates or
+employee.id in document.approvalParticipants
+EXPRESSION;
+
+$connection = new Connection('...');
+$locator    = new TableLocator($connection);
+$language   = new TranslatableExpressionLanguage(null, [], [new DefaultPropertyTranslatorFactory($locator)]);
+$language->getVariableMapper()
+    ->map('employee', Employee::class)
+    ->map('document', Document::class);
+
+// Given a specific employee, fetch accessible documents
+$row = $locator->createGateway('example.employees')
+    ->selectByPrimaryKey(3)
+    ->fetchFirst();
+
+$employee = new Employee(
+    $row['id'],
+    $row['department_id'],
+    $row['first_name'],
+    $row['last_name'],
+    $row['position'],
+    $row['is_manager'],
+    $language->createPropertyTranslator('employee', 'subordinates', true)
+);
+
+echo "Accessing lazy property: " . \PHP_EOL;
+print_r($employee->subordinates);
+echo \PHP_EOL . \PHP_EOL;
+
+// The third argument to translate() specifies what variables are known
+$documentLookup = $language->translate($expression, ['employee', 'document'], ['employee']);
+
+$query = $locator->select('example.documents', fn (Bu $bu) => $bu
+    ->returningColumns(['id', 'title'])
+    ->add($documentLookup->getCondition(['employee' => $employee]))
+    ->add(FragmentList::normalize($documentLookup->getExtraFragments()))
+    ->add(new ResetAliasFragment('document')));
+
+echo "Documents lookup query: " . \PHP_EOL;
+echo $query->createSelectStatement()->getSql() . \PHP_EOL . \PHP_EOL;
+
+echo "Documents found: " . \PHP_EOL;
+foreach ($query as $document) {
+    echo $document['id'] . ' => ' . $document['title'] . PHP_EOL;
+}
+
+
+$row = $locator->select('example.documents', fn (Bu $bu) => $bu
+    ->primaryKey(1)
+    ->returningSubquery(
+        $locator->select('example.approval_participants', fn (Bu $bu) => $bu
+            ->returningColumns(['employee_id']))
+    )
+        ->joinOnForeignKey()
+        ->columnAlias('participants')
+        ->asArray())
+    ->fetchFirst();
+
+$document = new Document(
+    $row['id'],
+    $row['author_id'],
+    $row['title'],
+    $row['content'],
+    $row['participants'],
+);
+
+// This time, document is known
+$employeeLookup = $language->translate($expression, ['employee', 'document'], ['document']);
+
+$query = $locator->select('example.employees', fn (Bu $bu) => $bu
+    ->returningColumns(['id', 'first_name', 'last_name'])
+    ->add($employeeLookup->getCondition(['document' => $document]))
+    ->add(FragmentList::normalize($employeeLookup->getExtraFragments()))
+    ->add(new ResetAliasFragment('employee')));
+
+echo \PHP_EOL . \PHP_EOL . "Employees lookup query: " . \PHP_EOL;
+echo $query->createSelectStatement()->getSql() . \PHP_EOL . \PHP_EOL;
+
+echo "Employees found: " . \PHP_EOL;
+foreach ($query as $employee) {
+    echo $employee['id'] . ' => ' . $employee['first_name'] . ' ' . $employee['last_name'] . \PHP_EOL;
+}
+```
+running this example outputs
+```
+Accessing lazy property: 
+Array
+(
+    [0] => 4
+    [1] => 7
+)
+
+
+Documents lookup query: 
+with recursive subdepartments as (
+    select id, array[id] as "path", "name"
+    from example.departments
+    where parent_id is null
+    union all
+    select d.id, "path" || d.id, d."name"
+    from example.departments as d, subdepartments as sd
+    where d.parent_id = sd.id
+)
+select self.id, self.title
+from example.documents as self
+where (
+        self.author_id is not distinct from $1::int4
+        or self.author_id = any(
+            select e.id
+            from example.employees as e, subdepartments as d
+            where $2
+                and $1 <> e.id
+                and e.department_id = d.id
+                and $3 = any(d."path")
+        )
+        or $1::int4 = any(
+            select gw_1.employee_id
+            from example.approval_participants as gw_1
+            where gw_1.document_id = self.id
+        )
+    )
+
+Documents found: 
+1 => New Anvil Schematics
+
+
+Employees lookup query: 
+with recursive subdepartments as (
+    select id, array[id] as "path", "name"
+    from example.departments
+    where parent_id is null
+    union all
+    select d.id, "path" || d.id, d."name"
+    from example.departments as d, subdepartments as sd
+    where d.parent_id = sd.id
+)
+select self.id, self.first_name, self.last_name
+from example.employees as self
+where (
+        $1::int4 is not distinct from self.id
+        or $1::int4 = any(
+            select e.id
+            from example.employees as e, subdepartments as d
+            where self.is_manager
+                and self.id <> e.id
+                and e.department_id = d.id
+                and self.department_id = any(d."path")
+        )
+        or self.id = any($2::int4[])
+    )
+
+Employees found: 
+1 => Top Boss
+3 => Engineering Boss
+6 => Coin Counter
+7 => Dwarven Weaponsmith
+```
+
 
 
 [ExpressionLanguage]: https://symfony.com/doc/current/components/expression_language.html

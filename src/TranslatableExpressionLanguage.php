@@ -23,7 +23,7 @@ use Symfony\Component\ExpressionLanguage\{
 };
 
 /**
- * ExpressionLanguage subclass that knows about translating properties and functions to SQL
+ * ExpressionLanguage subclass that knows about translating expressions to SQL
  */
 class TranslatableExpressionLanguage extends ExpressionLanguage
 {

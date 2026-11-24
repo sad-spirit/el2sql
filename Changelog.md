@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] - 2026-11-24
+
+### Added
+ * `TranslatedExpression::getQueryParameters()` and `$values` argument for `TranslatedExpression::getCondition()`.
+ * An example for two-variable expression in [README.md](./README.md#expression-with-multiple-variables).
+
 ## [0.2.0] - 2026-11-20
 
 ### Added
@@ -23,3 +29,4 @@ Initial release on GitHub.
 
 [0.1.0]: https://github.com/sad-spirit/el2sql/releases/tag/v0.1.0
 [0.2.0]: https://github.com/sad-spirit/pg-gateway/compare/v0.1.0...v0.2.0
+[0.3.0]: https://github.com/sad-spirit/pg-gateway/compare/v0.2.0...v0.3.0

@@ -24,9 +24,9 @@ in Postgres dialect of SQL.
 - [Supported ExpressionLanguage Features](#features-of-expressionlanguage-that-are-currently-supported)
   - [Literals](#literals)
   - [Accessing Properties](#accessing-public-properties)
-  - [Null-Coalescing Operator](#null-coalescing-operator)
   - [Functions](#working-with-functions)
   - [Operators](#operators)
+    - [Null-Coalescing Operator](#null-coalescing-operator)
     - [Arithmetic](#arithmetic-operators)
     - [Bitwise](#bitwise-operators)
     - [Comparison](#comparison-operators)
@@ -273,10 +273,6 @@ As you can see in the above example, the simplest lookup translation is from a p
 
 The simplest reference translation is a query parameter with its value coming from an object's property.
 
-### Null-Coalescing Operator
-
-Translated to `COALESCE()` SQL construct, `a.b ?? 42` becomes `COALESCE(a.b, 42)`.
-
 ### Working with Functions
 
 Function invocations are translated by implementations of `FunctionTranslator` interface. These can be passed alongside
@@ -296,6 +292,10 @@ other function properties when
 Additionally, `is_null()` PHP function is registered and its invocation is translated to `IS NULL` SQL construct.
 
 ### Operators
+
+#### Null-Coalescing Operator
+
+Translated to `COALESCE()` SQL construct, `a.b ?? 42` becomes `COALESCE(a.b, 42)`.
 
 #### Arithmetic Operators
 
